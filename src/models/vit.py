@@ -18,4 +18,5 @@ class ViTClassifier(nn.Module):
         self.backbone.heads.head = nn.Linear(in_features, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # obraz -> ViT -> logits (num_classes)
         return self.backbone(x)

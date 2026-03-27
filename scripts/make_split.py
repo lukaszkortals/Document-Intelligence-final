@@ -6,8 +6,12 @@ from pathlib import Path
 
 
 def safe_link_or_copy(src: Path, dst: Path, use_hardlinks: bool):
+    # Funkcja pomocnicza: umieszcza plik w docelowym miejscu.
+    # Jeśli --hardlinks: próbuje zrobić hardlink (na NTFS szybkie i bez dodatkowego miejsca).
+    # Jeśli hardlink nie zadziała (np. inny filesystem / brak uprawnień), robi zwykłe kopiowanie.
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists():
+        # Jeśli plik już istnieje, nie robimy nic (idempotentność).
         return
 
     if use_hardlinks:
@@ -17,24 +21,35 @@ def safe_link_or_copy(src: Path, dst: Path, use_hardlinks: bool):
         except OSError:
             pass  # fallback do copy
 
+    # copy2 zachowuje metadane pliku (daty, itp.)
     shutil.copy2(src, dst)
 
 
 def main():
+    # Ten skrypt bierze dataset w formie:
+    #   src/<class_name>/*.(jpg/png/tif/...)
+    # i tworzy nową strukturę:
+    #   dst/train/<class_name>/*
+    #   dst/val/<class_name>/*
+    #   dst/test/<class_name>/*
+    # Dodatkowo robi SUBSET: bierze po N plików na klasę dla train/val/test.
     parser = argparse.ArgumentParser()
     parser.add_argument("--src", type=str, required=True,
                         help="Folder z klasami: src/<class>/*.jpg")
     parser.add_argument("--dst", type=str, required=True,
                         help="Folder wyjściowy: dst/{train,val,test}/<class>/*.jpg")
 
+    # Ile plików na klasę ma trafić do poszczególnych splitów.
     parser.add_argument("--train", type=int, default=800, help="Ile plików na klasę do train")
     parser.add_argument("--val", type=int, default=100, help="Ile plików na klasę do val")
     parser.add_argument("--test", type=int, default=100, help="Ile plików na klasę do test")
 
+    # Seed dla powtarzalności splitu (żeby przy tym samym seedzie wychodził ten sam podział).
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--hardlinks", action="store_true",
                         help="Użyj hardlinków zamiast kopiowania (szybko i bez zajmowania miejsca)")
 
+    # Dozwolone rozszerzenia plików.
     parser.add_argument("--ext", type=str, default="jpg,png,jpeg,tif,tiff",
                         help="Dozwolone rozszerzenia (comma-separated)")
 
@@ -47,8 +62,10 @@ def main():
     if not src.exists():
         raise FileNotFoundError(f"Nie ma src: {src}")
 
+    # Ustawienie seeda: random.shuffle będzie deterministyczny dla danego seeda.
     random.seed(args.seed)
 
+    # Każdy podfolder w src traktujemy jako klasę.
     class_dirs = [p for p in src.iterdir() if p.is_dir()]
     if not class_dirs:
         raise RuntimeError(f"Nie znaleziono folderów klas w: {src}")
@@ -59,14 +76,17 @@ def main():
 
     for cdir in class_dirs:
         cls = cdir.name
+
+        # Zbieramy wszystkie pliki w klasie (rekurencyjnie) z dozwolonym rozszerzeniem.
         files = [p for p in cdir.rglob("*") if p.is_file() and p.suffix.lower() in exts]
 
+        # Jeśli klasa ma mniej plików niż chcemy w sumie, bierzemy ile się da.
         if len(files) < (args.train + args.val + args.test):
             print(f"[WARN] Klasa '{cls}' ma tylko {len(files)} plików — za mało na żądane subsety. "
                   f"Zrobię ile się da proporcjonalnie.")
         random.shuffle(files)
 
-        # bierzemy ile się da
+        # Liczymy ile realnie możemy wziąć do każdego splitu.
         n_train = min(args.train, len(files))
         n_val = min(args.val, max(0, len(files) - n_train))
         n_test = min(args.test, max(0, len(files) - n_train - n_val))
@@ -75,6 +95,7 @@ def main():
         val_files = files[n_train:n_train + n_val]
         test_files = files[n_train + n_val:n_train + n_val + n_test]
 
+        # Dla każdego splitu tworzymy foldery i linkujemy/kopiujemy pliki.
         for split_name, split_files in [("train", train_files), ("val", val_files), ("test", test_files)]:
             out_dir = dst / split_name / cls
             out_dir.mkdir(parents=True, exist_ok=True)
@@ -89,4 +110,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # Standardowy pythonowy “entry point”:
+    # uruchom main() tylko jeśli ten plik odpalamy jako program, a nie importujemy jako moduł.
     main()

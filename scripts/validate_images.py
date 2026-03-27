@@ -5,11 +5,13 @@ from typing import List, Tuple
 
 from PIL import Image, ImageFile
 
-# czasem pomaga na ucięte pliki; nie naprawi totalnie uszkodzonych
+# Ustawienie pozwalające Pillow spróbować dokończyć ładowanie uciętych plików.
+# Nie naprawi totalnie uszkodzonych plików, ale czasem ratuje “prawie dobre” TIFF-y.
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 def iter_image_files(root: Path, exts: Tuple[str, ...]) -> List[Path]:
+    # Zbiera wszystkie pliki z dozwolonymi rozszerzeniami (rekurencyjnie).
     files = []
     for p in root.rglob("*"):
         if p.is_file() and p.suffix.lower() in exts:
@@ -18,6 +20,9 @@ def iter_image_files(root: Path, exts: Tuple[str, ...]) -> List[Path]:
 
 
 def is_image_readable(path: Path) -> bool:
+    # Sprawdza, czy obraz da się otworzyć i zdekodować.
+    # verify() sprawdza integralność, ale czasem nie dekoduje wszystkiego,
+    # więc robimy też drugi open + convert("RGB") dla pewności.
     try:
         with Image.open(path) as img:
             img.verify()  # szybka walidacja pliku
@@ -30,6 +35,10 @@ def is_image_readable(path: Path) -> bool:
 
 
 def main():
+    # Ten skrypt służy do offline’owej walidacji datasetu:
+    # - wykrywa pliki, których Pillow nie potrafi wczytać
+    # - zapisuje listę “bad images”
+    # - opcjonalnie przenosi uszkodzone pliki do osobnego katalog
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=str, required=True,
                         help="Folder datasetu (np. data/processed/RVL-CDIP_subset)")
@@ -48,6 +57,7 @@ def main():
     exts = tuple(("." + e.strip().lower()) for e in args.ext.split(","))
     files = iter_image_files(root, exts)
 
+    # Ułatwia szybkie testy bez skanowania całego datasetu.
     if args.limit and args.limit > 0:
         files = files[:args.limit]
 
@@ -58,17 +68,21 @@ def main():
         ok = is_image_readable(f)
         if not ok:
             bad.append(f)
+        # Progres co 1000 plików, żeby było widać, że skrypt żyje.
         if i % 1000 == 0:
             print(f"  progress: {i}/{len(files)} | bad: {len(bad)}")
 
     print("\nDONE")
     print(f"Bad files: {len(bad)}")
 
+    # Zapis listy uszkodzonych plików do outputs/bad_images.txt
     out_report = Path("outputs") / "bad_images.txt"
     out_report.parent.mkdir(parents=True, exist_ok=True)
     out_report.write_text("\n".join(str(p) for p in bad), encoding="utf-8")
     print(f"Zapisano listę: {out_report}")
 
+    # Opcjonalne przenoszenie “bad files” do osobnego katalogu.
+    # Przydatne, gdy trening się wywala na pojedynczym pliku.
     if args.move_bad_to:
         dst_root = Path(args.move_bad_to)
         dst_root.mkdir(parents=True, exist_ok=True)

@@ -4,6 +4,8 @@
 Classify document type from **image only** (no OCR / no text).
 
 ### Data
+`https://www.kaggle.com/datasets/pdavpoojan/the-rvlcdip-dataset-test/` 
+
 RVL-CDIP subset (16 classes) split into train/val/test using `scripts/make_split.py`.  
 Images are TIFFs; corrupted files can be detected with `scripts/validate_images.py` (and are also safely skipped at load time).
 

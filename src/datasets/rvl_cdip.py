@@ -13,10 +13,15 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 def build_transforms(img_size: int, train: bool) -> transforms.Compose:
+    # Transforms = preprocessing + (opcjonalnie) augmentacja.
+    # Dlaczego resize? Model wymaga stałego rozmiaru wejścia.
+    # Dlaczego normalize ImageNet? Standard dla modeli vision, szczególnie pretrained.
     if train:
         return transforms.Compose([
             transforms.Resize((img_size, img_size)),
+            # Delikatna losowa zmiana koloru/jasności (odporność na różne skany/druk).
             transforms.RandomApply([transforms.ColorJitter(0.1, 0.1, 0.1, 0.05)], p=0.3),
+            # Delikatny obrót (np. krzywo zeskanowana kartka).
             transforms.RandomRotation(degrees=2),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -32,17 +37,22 @@ def build_transforms(img_size: int, train: bool) -> transforms.Compose:
 
 class SafeImageFolderDataset(Dataset):
     """
+    Dataset “ImageFolder-like”, ale z bezpiecznym ładowaniem.
     Oczekuje struktury:
       root/<split>/<class>/*.{tif,tiff,jpg,png,...}
 
     Pomija uszkodzone obrazy w runtime.
+    (Dzięki temu trening nie pada na 1 wadliwym pliku.)
     """
     def __init__(self, split_dir: Path, transform, class_to_idx: Dict[str, int]):
         self.split_dir = split_dir
         self.transform = transform
         self.class_to_idx = class_to_idx
 
+        # Dozwolone formaty – w praktyce RVL-CDIP u Ciebie jest w TIFF.
         exts = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}
+
+        # items: lista (ścieżka_do_pliku, label_int)
         items: List[Tuple[Path, int]] = []
         for cls_name, cls_idx in class_to_idx.items():
             cls_dir = split_dir / cls_name
@@ -61,24 +71,29 @@ class SafeImageFolderDataset(Dataset):
         return len(self.items)
 
     def __getitem__(self, idx: int):
-        # próbujemy kilka razy, bo czasem trafisz na uszkodzony plik
+        # “Bezpieczny” getitem:
+        # próbujemy kilka razy, bo czasem trafisz na uszkodzony plik.
         tries = 0
         while tries < 10:
             path, label = self.items[idx]
             try:
+                # Konwertujemy do RGB, żeby mieć stały kanał (3 kanały).
+                # Dokumenty mogą być grayscale / paletowe itp.
                 with Image.open(path) as img:
                     img = img.convert("RGB")
                 if self.transform is not None:
                     img = self.transform(img)
                 return img, label
             except Exception as e:
-                # log raz na jakiś czas, żeby nie spamować
+                # Logujemy tylko przy pierwszym błędzie dla tego idx, żeby nie spamować.
                 if tries == 0:
                     print(f"[WARN] skip bad image: {path} ({type(e).__name__}: {e})")
+                # Losujemy inny indeks i próbujemy ponownie.
                 idx = random.randint(0, len(self.items) - 1)
                 tries += 1
 
-        # jeśli naprawdę jest dramat, zwracamy cokolwiek sensownego
+        # Jeśli naprawdę jest dramat (np. zbyt dużo złych plików),
+        # zwracamy pierwszy poprawny przykład “awaryjnie”.
         path, label = self.items[0]
         with Image.open(path) as img:
             img = img.convert("RGB")
@@ -87,6 +102,8 @@ class SafeImageFolderDataset(Dataset):
 
 
 def _discover_classes(train_dir: Path) -> Dict[str, int]:
+    # Odczytujemy nazwy klas po folderach w train/.
+    # Zwracamy mapowanie class_name -> idx (kolejność sortowana).
     class_names = sorted([p.name for p in train_dir.iterdir() if p.is_dir()])
     if not class_names:
         raise RuntimeError(f"Nie znaleziono folderów klas w {train_dir}")
@@ -99,6 +116,8 @@ def create_dataloaders(
     batch_size: int,
     num_workers: int,
 ):
+    # Tworzymy DataLoadery dla train/val/test.
+    # Uwaga: pin_memory=True daje przyspieszenie transferu CPU->GPU, gdy mamy CUDA.
     train_dir = data_dir / "train"
     val_dir = data_dir / "val"
     test_dir = data_dir / "test"
