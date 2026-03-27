@@ -11,7 +11,7 @@ def safe_link_or_copy(src: Path, dst: Path, use_hardlinks: bool):
     # Jeśli hardlink nie zadziała (np. inny filesystem / brak uprawnień), robi zwykłe kopiowanie.
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists():
-        # Jeśli plik już istnieje, nie robimy nic (idempotentność).
+        # Jeśli plik już istnieje, nie robimy nic
         return
 
     if use_hardlinks:
@@ -21,7 +21,7 @@ def safe_link_or_copy(src: Path, dst: Path, use_hardlinks: bool):
         except OSError:
             pass  # fallback do copy
 
-    # copy2 zachowuje metadane pliku (daty, itp.)
+    # copy2 zachowuje metadane pliku (daty, itp.)+
     shutil.copy2(src, dst)
 
 
@@ -62,7 +62,7 @@ def main():
     if not src.exists():
         raise FileNotFoundError(f"Nie ma src: {src}")
 
-    # Ustawienie seeda: random.shuffle będzie deterministyczny dla danego seeda.
+    # Ustawienie seeda: random.shuffle
     random.seed(args.seed)
 
     # Każdy podfolder w src traktujemy jako klasę.
@@ -77,7 +77,7 @@ def main():
     for cdir in class_dirs:
         cls = cdir.name
 
-        # Zbieramy wszystkie pliki w klasie (rekurencyjnie) z dozwolonym rozszerzeniem.
+        # Zbieramy wszystkie pliki w klasie z dozwolonym rozszerzeniem.
         files = [p for p in cdir.rglob("*") if p.is_file() and p.suffix.lower() in exts]
 
         # Jeśli klasa ma mniej plików niż chcemy w sumie, bierzemy ile się da.
@@ -110,6 +110,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # Standardowy pythonowy “entry point”:
-    # uruchom main() tylko jeśli ten plik odpalamy jako program, a nie importujemy jako moduł.
     main()

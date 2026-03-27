@@ -14,14 +14,14 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def build_transforms(img_size: int, train: bool) -> transforms.Compose:
     # Transforms = preprocessing + (opcjonalnie) augmentacja.
-    # Dlaczego resize? Model wymaga stałego rozmiaru wejścia.
-    # Dlaczego normalize ImageNet? Standard dla modeli vision, szczególnie pretrained.
+    # Resize - Model wymaga stałego rozmiaru wejścia.
+    # Normalize ImageNet - Standard dla modeli vision, szczególnie pretrained.
     if train:
         return transforms.Compose([
             transforms.Resize((img_size, img_size)),
-            # Delikatna losowa zmiana koloru/jasności (odporność na różne skany/druk).
+            # Delikatna losowa zmiana koloru/jasności
             transforms.RandomApply([transforms.ColorJitter(0.1, 0.1, 0.1, 0.05)], p=0.3),
-            # Delikatny obrót (np. krzywo zeskanowana kartka).
+            # Delikatny obrót
             transforms.RandomRotation(degrees=2),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -49,7 +49,7 @@ class SafeImageFolderDataset(Dataset):
         self.transform = transform
         self.class_to_idx = class_to_idx
 
-        # Dozwolone formaty – w praktyce RVL-CDIP u Ciebie jest w TIFF.
+        # Dozwolone formaty – w praktyce w RVL-CDIP jest w TIFF.
         exts = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}
 
         # items: lista (ścieżka_do_pliku, label_int)
@@ -71,8 +71,7 @@ class SafeImageFolderDataset(Dataset):
         return len(self.items)
 
     def __getitem__(self, idx: int):
-        # “Bezpieczny” getitem:
-        # próbujemy kilka razy, bo czasem trafisz na uszkodzony plik.
+        # próbujemy kilka razy, bo czasem wpadnie na uszkodzony plik.
         tries = 0
         while tries < 10:
             path, label = self.items[idx]
@@ -92,8 +91,8 @@ class SafeImageFolderDataset(Dataset):
                 idx = random.randint(0, len(self.items) - 1)
                 tries += 1
 
-        # Jeśli naprawdę jest dramat (np. zbyt dużo złych plików),
-        # zwracamy pierwszy poprawny przykład “awaryjnie”.
+        # Jeśli naprawdę jest zbyt dużo złych plików
+        # zwracamy pierwszy poprawny przykład
         path, label = self.items[0]
         with Image.open(path) as img:
             img = img.convert("RGB")

@@ -98,8 +98,6 @@ def evaluate(model, loader, loss_fn, device) -> Dict[str, float]:
 
 
 def main():
-    # CLI: parametry runu podajesz w terminalu.
-    # To jest standard w ML projektach: łatwo powtarzać eksperymenty i logować ustawienia.
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", type=str, required=True, help="Folder z train/val/test")
     parser.add_argument("--epochs", type=int, default=10)
@@ -115,7 +113,7 @@ def main():
     parser.add_argument("--run_name", type=str, default="", help="Optional run label, e.g. lr1e-4_bs64_vit")
     args = parser.parse_args()
 
-    # Konfiguracja treningu (trzymamy parametry w jednym obiekcie).
+    # Konfiguracja treningu
     cfg = TrainConfig(
         data_dir=Path(args.data_dir),
         img_size=args.img_size,
@@ -155,7 +153,7 @@ def main():
     print(f"Run: {run_id} | checkpoints: {ckpt_dir}")
     config_path = ckpt_dir / "run_config.json"
 
-    # Zapis parametrów runu do JSON (żeby później było wiadomo “co to było”).
+    # Zapis parametrów runu do JSON
     config_path.write_text(json.dumps({
         "data_dir": str(cfg.data_dir),
         "img_size": cfg.img_size,
@@ -171,7 +169,7 @@ def main():
         "run_name": args.run_name,
     }, indent=2), encoding="utf-8")
 
-    # CSV z metrykami per epoka (łatwe do wykresów i do README).
+    # CSV z metrykami per epoka
     metrics_path = ckpt_dir / "metrics.csv"
     csv_file = open(metrics_path, "w", newline="", encoding="utf-8")
     csv_writer = csv.DictWriter(csv_file, fieldnames=["epoch", "train_loss", "train_acc", "val_loss", "val_acc"])
@@ -190,7 +188,7 @@ def main():
     )
     num_classes = len(class_to_idx)
 
-    # Wybór modelu (CNN scratch vs ViT).
+    # Wybór modelu (CNN vs ViT).
     if args.model == "cnn":
         model = SimpleCNN(num_classes=num_classes).to(device)
     elif args.model == "vit":
@@ -199,12 +197,10 @@ def main():
         raise ValueError(f"Unknown model: {args.model}")
 
     # Loss i optimizer:
-    # - CrossEntropyLoss do klasyfikacji wieloklasowej
-    # - AdamW: często stabilny i standardowy w vision/transformers
     loss_fn = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
-    # AMP (mixed precision) na GPU.
+    # AMP na GPU.
     scaler = torch.amp.GradScaler("cuda") if (cfg.amp and device.type == "cuda") else None
 
     # Najlepszy wynik walidacji, do zapisu best.pt.
@@ -244,7 +240,7 @@ def main():
             writer.add_scalar("acc/val", va["acc"], epoch)
             writer.flush()
 
-            # Sprawdzamy poprawę val_acc (z małym progiem na szum).
+            # Sprawdzamy poprawę val_acc
             improved = va["acc"] > best_val_acc + 1e-6  # mały próg, żeby uniknąć "szumu"
 
             if improved:

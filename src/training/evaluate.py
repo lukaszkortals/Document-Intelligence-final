@@ -50,14 +50,14 @@ def main():
                     help="Folder wyjściowy (np. outputs/checkpoints/<run_id>). Jeśli pusty, użyje folderu checkpointu.")
     args = parser.parse_args()
 
-    # out_dir: jeśli nie podasz, zapisze do folderu checkpointu (czyli folderu runu).
+    # out_dir: jeśli puste to zapisze do folderu checkpointu (czyli folderu runu).
     ckpt_path = Path(args.ckpt)
     out_dir = Path(args.out_dir) if args.out_dir else ckpt_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
 
     device = get_device()
 
-    # Wczytanie checkpointu (na CPU), potem model przeniesiemy na device.
+    # Wczytanie checkpointu (na CPU)
     ckpt = torch.load(args.ckpt, map_location="cpu")
 
     # model_name/pretrained są zapisywane w train.py w checkpointcie.
@@ -106,7 +106,7 @@ def main():
     out_txt.write_text(report_text, encoding="utf-8")
     print(f"Saved classification report to: {out_txt}")
 
-    # confusion_matrix: macierz pomyłek (true vs predicted).
+    # confusion_matrix: macierz pomyłek
     cm = confusion_matrix(y_true, y_pred)
     plt.figure(figsize=(10, 10))
     plt.imshow(cm)

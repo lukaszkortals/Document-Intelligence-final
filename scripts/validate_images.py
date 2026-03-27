@@ -6,12 +6,11 @@ from typing import List, Tuple
 from PIL import Image, ImageFile
 
 # Ustawienie pozwalające Pillow spróbować dokończyć ładowanie uciętych plików.
-# Nie naprawi totalnie uszkodzonych plików, ale czasem ratuje “prawie dobre” TIFF-y.
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 def iter_image_files(root: Path, exts: Tuple[str, ...]) -> List[Path]:
-    # Zbiera wszystkie pliki z dozwolonymi rozszerzeniami (rekurencyjnie).
+    # Zbiera wszystkie pliki z dozwolonymi rozszerzeniami
     files = []
     for p in root.rglob("*"):
         if p.is_file() and p.suffix.lower() in exts:
